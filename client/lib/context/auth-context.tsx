@@ -1,155 +1,99 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect } from "react";
-import axios, { AxiosResponse } from "axios";
-import { updateAccountDetails , updateUserAvatar , changePassword } from "../api/user";
-const AuthContext = createContext<any>(null);
+import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import axios from "axios";
+import { updateAccountDetails, updateUserAvatar, changePassword } from "../api/user";
 
 const API = "http://localhost:8000/api/v1";
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<any>(null);
-  const [tasks, setTasks] = useState<any[]>([]);
-  const [users, setUsers] = useState<any[]>([]);
+// ====== Types ======
+export type TaskStatus = "pending" | "in-progress" | "completed";
+export type TaskPriority = "low" | "medium" | "high";
+
+export interface Task {
+  id: string;
+  _id?: string;
+  title: string;
+  description: string;
+  status: TaskStatus;
+  priority: TaskPriority;
+  assignedTo?: string;
+  dueDate?: string;
+}
+
+export interface User {
+  id: string;
+  _id?: string;
+  fullName: string;
+  email: string;
+  role: "admin" | "user";
+  avatar?: string;
+}
+
+interface AuthContextType {
+  user: User | null;
+  tasks: Task[];
+  users: User[];
+  loading: boolean;
+  login: (email: string, password: string) => Promise<boolean>;
+  register: (data: any) => Promise<User>;
+  logout: () => void;
+  fetchTasks: () => Promise<void>;
+  fetchUsers: () => Promise<void>;
+  createTask: (taskData: Partial<Task>) => Promise<void>;
+  updateTask: (taskId: string, updates: Partial<Task>) => Promise<void>;
+  deleteTask: (taskId: string) => Promise<void>;
+  deleteUser: (userId: string) => Promise<void>;
+  updateProfile: (data: any) => Promise<User>;
+  updateAvatar: (file: any) => Promise<User>;
+  updateChangePassword: (data: any) => Promise<string>;
+}
+
+const AuthContext = createContext<AuthContextType | null>(null);
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<User | null>(null);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Load user on refresh
-  useEffect(() => {
-    console.log("🔄 AuthContext: useEffect triggered");
-    const token = localStorage.getItem("token");
-    console.log("🔑 Token found:", !!token);
-    
-    if (!token) {
-      console.log("❌ No token, setting loading to false");
-      setLoading(false);
-      return;
-    }
-
-    console.log("✅ Token exists, fetching user...");
-    axios
-      .get(`${API}/users/current-user`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      .then((res) => {
-        const userData = res.data.data;
-        setUser(userData);
-        
-        // Fetch tasks based on role
-        if (userData.role === "admin") {
-          console.log("👑 Admin user, fetching all tasks and users");
-          return Promise.all([
-            fetchAllTasksWithToken(token),
-            fetchUsersWithToken(token)
-          ]);
-        } else {
-          console.log("👤 Regular user, fetching my tasks");
-          return fetchMyTasksWithToken(token);
-        }
-      })
-      .catch((error) => {
-        console.error("❌ Error loading user:", error);
-        localStorage.removeItem("token");
-        setUser(null);
-      })
-      .finally(() => {
-        console.log("✅ Loading complete, setting loading to false");
-        setLoading(false);
-      });
-  }, []);
-
-  // LOGIN
-  const login = async (email: string, password: string) => {
-    try {
-      console.log("🔐 Attempting login...");
-      const res = await axios.post(`${API}/users/login`, { email, password });
-
-      const token = res.data.data.accessToken;
-      const userData = res.data.data.user;
-
-     
-
-      localStorage.setItem("token", token);
-      setUser(userData);
-      setLoading(false);
-
-      // Fetch data based on role
-      if (userData.role === "admin") {
-        console.log("👑 Fetching admin data");
-        await Promise.all([
-          fetchAllTasksWithToken(token),
-          fetchUsersWithToken(token)
-        ]);
-      } else {
-        console.log("👤 Fetching user data");
-        await fetchMyTasksWithToken(token);
-      }
-
-      console.log("✅ Login flow complete");
-      return true;
-    } catch (error) {
-      console.error("❌ Login error:", error);
-      throw error;
-    }
-  };
-
-  // REGISTER
-  const register = async (data: any) => {
-    const res = await axios.post(`${API}/users/register`, data);
-    return res.data.data;
-  };
-
-  // LOGOUT
-  const logout = () => {
-    console.log("👋 Logging out");
-    localStorage.removeItem("token");
-    setUser(null);
-    setTasks([]);
-    setUsers([]);
-  };
-
-  // Helper: Fetch ALL tasks (Admin)
+  // ===== Helper functions =====
   const fetchAllTasksWithToken = async (token: string) => {
     try {
       const res = await axios.get(`${API}/tasks/get-all-tasks`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      console.log("📋 All tasks fetched:", res.data.data.length);
       setTasks(res.data.data);
-    } catch (error) {
-      console.error("❌ Error fetching all tasks:", error);
+    } catch (err) {
+      console.error("Error fetching all tasks:", err);
       setTasks([]);
     }
   };
 
-  // Helper: Fetch MY tasks (User)
   const fetchMyTasksWithToken = async (token: string) => {
     try {
       const res = await axios.get(`${API}/tasks/my-task`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      console.log("📋 My tasks fetched:", res.data.data.length);
       setTasks(res.data.data);
-    } catch (error) {
-      console.error("❌ Error fetching my tasks:", error);
+    } catch (err) {
+      console.error("Error fetching my tasks:", err);
       setTasks([]);
     }
   };
 
-  // Helper: Fetch users (Admin only)
   const fetchUsersWithToken = async (token: string) => {
     try {
       const res = await axios.get(`${API}/admin/get-all-users`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      console.log("👥 Users fetched:", res.data.data.length);
       setUsers(res.data.data);
-    } catch (error) {
-      console.error("❌ Error fetching users:", error);
+    } catch (err) {
+      console.error("Error fetching users:", err);
       setUsers([]);
     }
   };
 
-  // FETCH TASKS (public wrapper)
   const fetchTasks = async () => {
     const token = localStorage.getItem("token");
     if (!token || !user) return;
@@ -161,136 +105,161 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // FETCH USERS (Admin only)
   const fetchUsers = async () => {
     const token = localStorage.getItem("token");
     if (!token || user?.role !== "admin") return;
     await fetchUsersWithToken(token);
   };
 
- // CREATE TASK (Admin only)
-const createTask = async (taskData: any) => {
-  const token = localStorage.getItem("token");
-  if (!token) throw new Error("No token found");
+  // ===== Load user on mount =====
+  useEffect(() => {
+    const loadUser = async () => {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        setLoading(false);
+        return;
+      }
 
-  try {
-  
-    
-    const res = await axios.post(`${API}/tasks/create-task`, taskData, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    
-    console.log("✅ Task created successfully:", res.data);
-    await fetchTasks();
-  } catch (error: any) {
-    throw error;
-  }
-};
+      try {
+        const res = await axios.get(`${API}/users/current-user`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const userData: User = res.data.data;
+        setUser(userData);
 
-  // UPDATE TASK
-  const updateTask = async (taskId: string, updates: any) => {
-    const token = localStorage.getItem("token");
-    if (!token) throw new Error("No token found");
+        if (userData.role === "admin") {
+          await Promise.all([fetchAllTasksWithToken(token), fetchUsersWithToken(token)]);
+        } else {
+          await fetchMyTasksWithToken(token);
+        }
+      } catch (err) {
+        console.error("Error loading user:", err);
+        localStorage.removeItem("token");
+        setUser(null);
+      } finally {
+        setLoading(false);
+      }
+    };
 
+    loadUser();
+  }, []);
+
+  // ===== Auth functions =====
+  const login = async (email: string, password: string) => {
     try {
-      await axios.patch(`${API}/tasks/update-task/${taskId}`, updates, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      await fetchTasks();
-    } catch (error) {
-      console.error("Error updating task:", error);
-      throw error;
+      const res = await axios.post(`${API}/users/login`, { email, password });
+      const token = res.data.data.accessToken;
+      const userData: User = res.data.data.user;
+
+      localStorage.setItem("token", token);
+      setUser(userData);
+      setLoading(false);
+
+      if (userData.role === "admin") {
+        await Promise.all([fetchAllTasksWithToken(token), fetchUsersWithToken(token)]);
+      } else {
+        await fetchMyTasksWithToken(token);
+      }
+
+      return true;
+    } catch (err) {
+      console.error("Login error:", err);
+      throw err;
     }
   };
 
-  // DELETE TASK (Admin only)
+  const register = async (data: any) => {
+    const res = await axios.post(`${API}/users/register`, data);
+    return res.data.data as User;
+  };
+
+  const logout = () => {
+    localStorage.removeItem("token");
+    setUser(null);
+    setTasks([]);
+    setUsers([]);
+  };
+
+  const createTask = async (taskData: Partial<Task>) => {
+    const token = localStorage.getItem("token");
+    if (!token) throw new Error("No token found");
+
+    await axios.post(`${API}/tasks/create-task`, taskData, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    await fetchTasks();
+  };
+
+  const updateTask = async (taskId: string, updates: Partial<Task>) => {
+    const token = localStorage.getItem("token");
+    if (!token) throw new Error("No token found");
+
+    await axios.patch(`${API}/tasks/update-task/${taskId}`, updates, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    await fetchTasks();
+  };
+
   const deleteTask = async (taskId: string) => {
     const token = localStorage.getItem("token");
     if (!token) throw new Error("No token found");
 
-    try {
-      await axios.delete(`${API}/tasks/delete-task/${taskId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      await fetchTasks();
-    } catch (error) {
-      console.error("Error deleting task:", error);
-      throw error;
-    }
+    await axios.delete(`${API}/tasks/delete-task/${taskId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    await fetchTasks();
   };
 
-  // DELETE USER (Admin only)
   const deleteUser = async (userId: string) => {
     const token = localStorage.getItem("token");
     if (!token) throw new Error("No token found");
 
-    try {
-      await axios.delete(`${API}/admin/delete-user/${userId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      await fetchUsers();
-    } catch (error) {
-      console.error("Error deleting user:", error);
-      throw error;
-    }
+    await axios.delete(`${API}/admin/delete-user/${userId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    await fetchUsers();
   };
 
-  const updateProfile = async (data:any) => {
-  try {
+  const updateProfile = async (data: any) => {
     const updatedUser = await updateAccountDetails(data);
     setUser(updatedUser);
     return updatedUser;
-  } catch (err) {
-    console.error("Error updating account:", err);
-    throw err;
-  }
-};
+  };
 
-const updateAvatar = async (file:any) => {
-  try {
+  const updateAvatar = async (file: any) => {
     const updatedUser = await updateUserAvatar(file);
     setUser(updatedUser);
     return updatedUser;
-  } catch (err) {
-    console.error("Error updating avatar:", err);
-    throw err;
-  }
-};
+  };
 
-
-const updateChangePassword = async (data:any) => {
-  try {
+  const updateChangePassword = async (data: any) => {
     const msg = await changePassword(data);
-    return msg; // e.g. "Password updated successfully"
-  } catch (err) {
-    console.error("Password change failed:", err);
-    throw err;
-  }
-};
-
-
-
-  console.log("🎯 AuthContext render - user:", user, "loading:", loading);
+    return msg;
+  };
 
   return (
     <AuthContext.Provider
       value={{
         user,
-        loading,
         tasks,
         users,
+        loading,
         login,
         register,
         logout,
+        fetchTasks,
+        fetchUsers,
         createTask,
         updateTask,
         deleteTask,
         deleteUser,
-        fetchTasks,
-        fetchUsers,
         updateProfile,
         updateAvatar,
-        updateChangePassword
+        updateChangePassword,
       }}
     >
       {children}
@@ -298,4 +267,8 @@ const updateChangePassword = async (data:any) => {
   );
 }
 
-export const useAuth = () => useContext(AuthContext);
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) throw new Error("useAuth must be used within AuthProvider");
+  return context;
+};
