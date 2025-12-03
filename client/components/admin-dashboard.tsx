@@ -1,9 +1,8 @@
 "use client";
 
 import { useAuth } from "@/lib/context/auth-context";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Task, Status, Priority, statusColors, priorityColors } from "@/types/task";
-
 import { User } from "../types/user"
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,7 +23,7 @@ export function AdminDashboard() {
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const [newTask, setNewTask] = useState<Task>({
+  const [newTask, setNewTask] = useState<Partial<Task>>({
     title: "",
     description: "",
     status: "pending",
@@ -33,7 +32,20 @@ export function AdminDashboard() {
     dueDate: "",
   });
 
-  const taskList: Task[] = Array.isArray(tasks) ? tasks : [];
+  const taskList: Task[] = Array.isArray(tasks) 
+    ? tasks.map(task => {
+        // If assignedTo is a populated user object, extract just the ID
+        const assignedToId = typeof task.assignedTo === 'object' && task.assignedTo !== null
+          ? (task.assignedTo as any)._id || (task.assignedTo as any).id
+          : task.assignedTo || "";
+        
+        return {
+          ...task,
+          assignedTo: assignedToId
+        } as Task;
+      })
+    : [];
+    
   const userList: User[] = Array.isArray(users) ? users : [];
 
   const stats = {
@@ -44,12 +56,13 @@ export function AdminDashboard() {
     totalUsers: userList.filter((u) => u.role === "user").length,
   };
 
-  // Handle Task CRUD
   const handleCreateTask = async () => {
     if (newTask.title && newTask.description) {
       try {
         setIsSubmitting(true);
-        await createTask(newTask);
+        console.log("Creating task with data:", newTask);
+        await createTask(newTask as Task);
+        console.log("Task created successfully");
         setNewTask({ title: "", description: "", status: "pending", priority: "medium", assignedTo: "", dueDate: "" });
         setIsCreateOpen(false);
       } catch (error) {
@@ -65,7 +78,9 @@ export function AdminDashboard() {
     if (editingTask) {
       try {
         setIsSubmitting(true);
+        console.log("Updating task with data:", editingTask);
         await updateTask(editingTask._id || editingTask.id!, editingTask);
+        console.log("Task updated successfully");
         setIsEditOpen(false);
         setEditingTask(null);
       } catch (error) {
@@ -99,7 +114,6 @@ export function AdminDashboard() {
     }
   };
 
-  // Show loading
   if (loading) {
     return (
       <div className="container mx-auto p-6 flex items-center justify-center min-h-[400px]">
@@ -174,7 +188,7 @@ export function AdminDashboard() {
                 <Plus className="mr-2 h-4 w-4" /> Create Task
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Create Task</DialogTitle>
                 <DialogDescription>Add a new task</DialogDescription>
@@ -184,7 +198,7 @@ export function AdminDashboard() {
                   <Label htmlFor="title">Title</Label>
                   <Input
                     id="title"
-                    value={newTask.title}
+                    value={newTask.title || ""}
                     onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
                   />
                 </div>
@@ -192,7 +206,7 @@ export function AdminDashboard() {
                   <Label htmlFor="description">Description</Label>
                   <Textarea
                     id="description"
-                    value={newTask.description}
+                    value={newTask.description || ""}
                     onChange={(e) => setNewTask({ ...newTask, description: e.target.value })}
                   />
                 </div>
@@ -225,6 +239,39 @@ export function AdminDashboard() {
                       </SelectContent>
                     </Select>
                   </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Assign To</Label>
+                  <Select
+                    value={newTask.assignedTo || "unassigned"}
+                    onValueChange={(value) => {
+                      console.log("Selected user:", value);
+                      setNewTask({ ...newTask, assignedTo: value === "unassigned" ? "" : value });
+                    }}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Select user" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="unassigned">Unassigned</SelectItem>
+                      {userList.filter(u => u.role === "user").map((user) => {
+                        const userId = user._id || user.id;
+                        console.log("User:", user.fullName, "ID:", userId);
+                        return (
+                          <SelectItem key={userId} value={userId!}>
+                            {user.fullName}
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="dueDate">Due Date</Label>
+                  <Input
+                    id="dueDate"
+                    type="date"
+                    value={newTask.dueDate ? new Date(newTask.dueDate).toISOString().split('T')[0] : ""}
+                    onChange={(e) => setNewTask({ ...newTask, dueDate: e.target.value })}
+                  />
                 </div>
                 <Button onClick={handleCreateTask} className="w-full" disabled={isSubmitting}>
                   {isSubmitting ? "Creating..." : "Create Task"}
@@ -260,7 +307,26 @@ export function AdminDashboard() {
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    {userList.find((u) => (u._id || u.id) === task.assignedTo)?.fullName || "Unassigned"}
+                    {(() => {
+                      console.log("Task assignedTo:", task.assignedTo, "Available users:", userList.map(u => ({ id: u._id || u.id, name: u.fullName })));
+                      if (!task.assignedTo) return "Unassigned";
+                      
+                      // Handle if assignedTo is populated with user object or just an ID
+                      const assignedToId = typeof task.assignedTo === 'string' 
+                        ? task.assignedTo 
+                        : (task.assignedTo as any)?._id || (task.assignedTo as any)?.id;
+                      
+                      // If assignedTo is already the full user object, return the name directly
+                      if (typeof task.assignedTo === 'object' && (task.assignedTo as any).fullName) {
+                        return (task.assignedTo as any).fullName;
+                      }
+                      
+                      // Otherwise, find the user by ID
+                      const assignedUser = userList.find((u) => 
+                        (u._id === assignedToId) || (u.id === assignedToId)
+                      );
+                      return assignedUser?.fullName || "Unassigned";
+                    })()}
                   </TableCell>
                   <TableCell>
                     {task.dueDate ? new Date(task.dueDate).toLocaleDateString() : "-"}
@@ -317,6 +383,101 @@ export function AdminDashboard() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Edit Task Dialog */}
+      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Task</DialogTitle>
+            <DialogDescription>Update task details</DialogDescription>
+          </DialogHeader>
+          {editingTask && (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-title">Title</Label>
+                <Input
+                  id="edit-title"
+                  value={editingTask.title}
+                  onChange={(e) => setEditingTask({ ...editingTask, title: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-description">Description</Label>
+                <Textarea
+                  id="edit-description"
+                  value={editingTask.description}
+                  onChange={(e) => setEditingTask({ ...editingTask, description: e.target.value })}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Status</Label>
+                  <Select
+                    value={editingTask.status}
+                    onValueChange={(value: Status) => setEditingTask({ ...editingTask, status: value })}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="in-progress">In Progress</SelectItem>
+                      <SelectItem value="completed">Completed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Priority</Label>
+                  <Select
+                    value={editingTask.priority}
+                    onValueChange={(value: Priority) => setEditingTask({ ...editingTask, priority: value })}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="low">Low</SelectItem>
+                      <SelectItem value="medium">Medium</SelectItem>
+                      <SelectItem value="high">High</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Assign To</Label>
+                <Select
+                  value={editingTask.assignedTo || "unassigned"}
+                  onValueChange={(value) => {
+                    console.log("Edit - Selected user:", value);
+                    setEditingTask({ ...editingTask, assignedTo: value === "unassigned" ? "" : value });
+                  }}
+                >
+                  <SelectTrigger><SelectValue placeholder="Select user" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="unassigned">Unassigned</SelectItem>
+                    {userList.filter(u => u.role === "user").map((user) => {
+                      const userId = user._id || user.id;
+                      return (
+                        <SelectItem key={userId} value={userId!}>
+                          {user.fullName}
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-dueDate">Due Date</Label>
+                <Input
+                  id="edit-dueDate"
+                  type="date"
+                  value={editingTask.dueDate ? new Date(editingTask.dueDate).toISOString().split('T')[0] : ""}
+                  onChange={(e) => setEditingTask({ ...editingTask, dueDate: e.target.value })}
+                />
+              </div>
+              <Button onClick={handleUpdateTask} className="w-full" disabled={isSubmitting}>
+                {isSubmitting ? "Updating..." : "Update Task"}
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

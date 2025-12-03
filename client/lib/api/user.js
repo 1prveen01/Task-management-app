@@ -1,6 +1,4 @@
-
-
-import api from "../axios.js"
+import api from "../axios.js";
 
 // -----------------------------
 // REGISTER USER
@@ -56,8 +54,16 @@ export const getCurrentUser = async () => {
 // UPDATE USER ACCOUNT DETAILS
 // -----------------------------
 export const updateAccountDetails = async (updates) => {
-  const res = await api.patch("/users/update-account", updates);
-  return res.data.data;
+  try {
+    const res = await api.patch("/users/update-account", updates);
+    return res.data.data;
+  } catch (error) {
+    console.error(
+      "Error updating account details:",
+      error.response?.data || error.message
+    );
+    throw error;
+  }
 };
 
 // -----------------------------

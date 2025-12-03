@@ -10,13 +10,13 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { User, Mail, ImageIcon, Save, Lock } from "lucide-react"
-
 export default function ProfilePage() {
-  const { user, updateProfile, changePassword } = useAuth()
+  const { user, updateProfile, updateChangePassword } = useAuth()
   const router = useRouter()
 
   const [isEditing, setIsEditing] = useState(false)
   const [isChangingPassword, setIsChangingPassword] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
 
   const [formData, setFormData] = useState({
     fullName: "",
@@ -43,14 +43,46 @@ export default function ProfilePage() {
   }, [user, router])
 
   const handleSave = async () => {
-    await updateProfile(formData)
-    setIsEditing(false)
+    try {
+      setIsSaving(true)
+      await updateProfile(formData)
+      setIsEditing(false)
+      alert("Profile updated successfully")
+    } catch (error) {
+      console.error("Error updating profile:", error)
+      alert("Failed to update profile")
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   const handlePasswordChange = async () => {
-    await changePassword(passwords)
-    setPasswords({ currentPassword: "", newPassword: "", confirmPassword: "" })
-    setIsChangingPassword(false)
+    // Validate passwords
+    if (passwords.newPassword !== passwords.confirmPassword) {
+      alert("New passwords don't match")
+      return
+    }
+
+    if (passwords.newPassword.length < 6) {
+      alert("Password must be at least 6 characters")
+      return
+    }
+
+    try {
+      setIsSaving(true)
+      await updateChangePassword({
+        oldPassword: passwords.currentPassword,
+        newPassword: passwords.newPassword,
+      })
+      setPasswords({ currentPassword: "", newPassword: "", confirmPassword: "" })
+      setIsChangingPassword(false)
+      alert("Password changed successfully")
+    } catch (error: any) {
+      console.error("Error changing password:", error)
+      alert(error.response?.data?.message || "Failed to change password")
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   if (!user) return null
@@ -138,11 +170,23 @@ export default function ProfilePage() {
             <div className="flex gap-2">
               {isEditing ? (
                 <>
-                  <Button onClick={handleSave} className="flex-1">
+                  <Button onClick={handleSave} className="flex-1" disabled={isSaving}>
                     <Save className="mr-2 h-4 w-4" />
-                    Save Changes
+                    {isSaving ? "Saving..." : "Save Changes"}
                   </Button>
-                  <Button variant="outline" onClick={() => setIsEditing(false)} className="flex-1">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => {
+                      setIsEditing(false)
+                      setFormData({
+                        fullName: user.fullName,
+                        email: user.email,
+                        avatar: user.avatar || "",
+                      })
+                    }} 
+                    className="flex-1"
+                    disabled={isSaving}
+                  >
                     Cancel
                   </Button>
                 </>
@@ -202,13 +246,21 @@ export default function ProfilePage() {
               <div className="flex gap-2 pt-2">
                 {isChangingPassword ? (
                   <>
-                    <Button className="flex-1" onClick={handlePasswordChange}>
-                      Update Password
+                    <Button 
+                      className="flex-1" 
+                      onClick={handlePasswordChange}
+                      disabled={isSaving}
+                    >
+                      {isSaving ? "Updating..." : "Update Password"}
                     </Button>
                     <Button
                       variant="outline"
                       className="flex-1"
-                      onClick={() => setIsChangingPassword(false)}
+                      onClick={() => {
+                        setIsChangingPassword(false)
+                        setPasswords({ currentPassword: "", newPassword: "", confirmPassword: "" })
+                      }}
+                      disabled={isSaving}
                     >
                       Cancel
                     </Button>

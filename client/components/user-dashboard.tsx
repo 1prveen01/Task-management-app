@@ -10,15 +10,18 @@ import { CheckCircle2, Clock, AlertCircle, Calendar } from "lucide-react"
 export function UserDashboard() {
   const { user, tasks, updateTask } = useAuth()
 
+  // Get current user's ID (handle both _id and id)
+  const currentUserId = user?._id || user?.id
+
   const myTasks: Task[] = Array.isArray(tasks)
-    ? tasks.filter((task: Task) => task.assignedTo === user?.id)
+    ? tasks.filter((task: Task) => task.assignedTo === currentUserId)
     : []
 
   const stats = {
     totalTasks: myTasks.length,
     completedTasks: myTasks.filter((t) => t.status === "completed").length,
     inProgressTasks: myTasks.filter((t) => t.status === "in-progress").length,
-    todoTasks: myTasks.filter((t) => t.status === "pending").length,
+    pendingTasks: myTasks.filter((t) => t.status === "pending").length,
   }
 
   const handleStatusChange = (taskId: string, newStatus: Status) => {
@@ -46,11 +49,11 @@ export function UserDashboard() {
 
         <Card>
           <CardHeader className="flex justify-between pb-2">
-            <CardTitle className="text-sm font-medium">To Do</CardTitle>
-            <AlertCircle className="h-4 w-4 text-gray-500" />
+            <CardTitle className="text-sm font-medium">Pending</CardTitle>
+            <AlertCircle className="h-4 w-4 text-yellow-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.todoTasks}</div>
+            <div className="text-2xl font-bold">{stats.pendingTasks}</div>
           </CardContent>
         </Card>
 
@@ -114,7 +117,7 @@ export function UserDashboard() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="todo">To Do</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
                     <SelectItem value="in-progress">In Progress</SelectItem>
                     <SelectItem value="completed">Completed</SelectItem>
                   </SelectContent>

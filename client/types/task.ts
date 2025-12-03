@@ -22,6 +22,6 @@ export interface Task {
   description: string;
   status: Status;
   priority: Priority;
-  assignedTo: string;
-  dueDate: string;
+  assignedTo?: string;
+  dueDate?: string;
 }
