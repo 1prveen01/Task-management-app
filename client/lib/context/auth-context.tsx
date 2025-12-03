@@ -4,7 +4,7 @@ import { createContext, useContext, useState, useEffect, ReactNode } from "react
 import axios from "axios";
 import { updateAccountDetails, updateUserAvatar, changePassword } from "../api/user";
 
-const API = "http://localhost:8000/api/v1";
+const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 
 // ====== Types ======
 export type TaskStatus = "pending" | "in-progress" | "completed";
