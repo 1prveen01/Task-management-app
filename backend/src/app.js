@@ -6,8 +6,11 @@ import cookieParser from 'cookie-parser'
 
 const app = express()
 
+const allowedOrigins = process.env.CORS_ORIGIN.split(',').map(origin => origin.trim())
+// This is an ARRAY: ['http://localhost:3000', 'https://task-management-app-nu-seven.vercel.app']
+
 app.use(cors({
-    origin: process.env.CORS_ORIGIN,
+    origin: allowedOrigins,  // Now it accepts multiple origins
     credentials: true,
 }))
 
