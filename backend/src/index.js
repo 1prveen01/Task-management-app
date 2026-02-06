@@ -6,11 +6,11 @@ import connectDB from "./db/index.js";
 import app from "./app.js"
 
 
-console.log("ENV CHECK:", {
-    cloudName: process.env.CLOUDINARY_CLOUD_NAME,
-    apiKey: process.env.CLOUDINARY_API_KEY,
-    hasSecret: !!process.env.CLOUDINARY_API_SECRET
-});
+// console.log("ENV CHECK:", {
+//     cloudName: process.env.CLOUDINARY_CLOUD_NAME,
+//     apiKey: process.env.CLOUDINARY_API_KEY,
+//     hasSecret: !!process.env.CLOUDINARY_API_SECRET
+// });
 
 
 connectDB()
